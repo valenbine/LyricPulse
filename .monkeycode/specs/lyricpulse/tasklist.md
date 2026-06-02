@@ -20,11 +20,11 @@ Updated: 2026-06-02
 
 ## Phase 3: API Service
 
-1. Create Fastify API service with health check and JSON error payload conventions.
-2. Implement project creation and local metadata persistence.
-3. Implement multipart upload endpoints for audio, LRC, and cover assets.
-4. Connect upload validation to supported audio, lyrics, and image formats.
-5. Expose parsed lyric timeline and project status endpoints.
+1. [x] Create Fastify API service with health check and JSON error payload conventions.
+2. [x] Implement project creation and local metadata persistence.
+3. [x] Implement multipart upload endpoints for audio, LRC, and cover assets.
+4. [x] Connect upload validation to supported audio, lyrics, and image formats.
+5. [x] Expose parsed lyric timeline and project status endpoints.
 
 ## Phase 4: Audio Analysis
 
