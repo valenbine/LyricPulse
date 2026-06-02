@@ -28,11 +28,11 @@ Updated: 2026-06-02
 
 ## Phase 4: Audio Analysis
 
-1. Implement audio analysis adapter interface for duration, BPM, beats, loudness, and simplified frequency bands.
-2. Add FFmpeg-based duration and loudness extraction.
-3. Add beat and simplified bass/mid/treble analysis using replaceable adapters.
-4. Store normalized `AudioAnalysis` JSON per project.
-5. Add tests for analysis JSON normalization and partial failure handling.
+1. [x] Implement audio analysis adapter interface for duration, BPM, beats, loudness, and simplified frequency bands.
+2. [x] Add FFmpeg-based duration and loudness extraction.
+3. [x] Add beat and simplified bass/mid/treble analysis using replaceable adapters.
+4. [x] Store normalized `AudioAnalysis` JSON per project.
+5. [x] Add tests for analysis JSON normalization and partial failure handling.
 
 ## Phase 5: Remotion Video Package
 

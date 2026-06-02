@@ -7,6 +7,7 @@ import { createApiConfig, type ApiConfig } from './config'
 import { ApiError, createErrorPayload } from './errors'
 import { createProjectStore } from './projects'
 import { getAssetKind, saveUploadedAsset } from './uploads'
+import { analyzeProjectAudio } from './analysis'
 
 const createProjectBodySchema = z.object({
   title: z.string().min(1).optional(),
@@ -95,6 +96,29 @@ export function buildApp(config: Partial<ApiConfig> = {}) {
 
     reply.code(201).send({
       asset: result.asset,
+      project: projectSchema.parse(result.project)
+    })
+  })
+
+  app.post('/api/projects/:projectId/analyze', async (request, reply) => {
+    const params = z
+      .object({ projectId: z.string().min(1) })
+      .parse(request.params)
+    const project = await store.getProject(params.projectId)
+
+    if (!project) {
+      throw new ApiError(404, 'PROJECT_NOT_FOUND', 'Project was not found')
+    }
+
+    const result = await analyzeProjectAudio({
+      storageRoot: apiConfig.storageRoot,
+      store,
+      project,
+      analyzeAudio: apiConfig.analyzeAudio
+    })
+
+    reply.send({
+      analysis: result.analysis,
       project: projectSchema.parse(result.project)
     })
   })

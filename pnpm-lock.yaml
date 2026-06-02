@@ -37,6 +37,9 @@ importers:
       '@fastify/multipart':
         specifier: ^9.3.0
         version: 9.4.0
+      '@lyricpulse/audio-analysis':
+        specifier: workspace:*
+        version: link:../../packages/audio-analysis
       '@lyricpulse/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -52,7 +55,11 @@ importers:
 
   apps/web: {}
 
-  packages/audio-analysis: {}
+  packages/audio-analysis:
+    dependencies:
+      '@lyricpulse/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/core:
     dependencies:

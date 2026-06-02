@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { FastifyInstance } from 'fastify'
+import type { AnalyzeAudioFunction } from './analysis'
 import { buildApp } from './app'
 
 describe('LyricPulse API', () => {
@@ -10,7 +11,22 @@ describe('LyricPulse API', () => {
 
   beforeEach(async () => {
     const storageRoot = await mkdtemp(join(tmpdir(), 'lyricpulse-api-'))
-    app = buildApp({ storageRoot })
+    const analyzeAudio: AnalyzeAudioFunction = async () => ({
+      duration: 8,
+      bpm: 120,
+      beats: [0, 0.5, 1],
+      frames: [
+        {
+          time: 0,
+          rms: 0.5,
+          loudness: -14,
+          bass: 0.7,
+          mid: 0.5,
+          treble: 0.3
+        }
+      ]
+    })
+    app = buildApp({ storageRoot, analyzeAudio })
     await app.ready()
   })
 
@@ -117,6 +133,46 @@ describe('LyricPulse API', () => {
     })
   })
 
+  it('analyzes uploaded audio and stores analysis on the project', async () => {
+    const project = await createProject()
+    await uploadAsset({
+      projectId: project.id,
+      kind: 'audio',
+      filename: 'song.mp3',
+      content: 'fake audio bytes'
+    })
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/projects/${project.id}/analyze`
+    })
+
+    expect(response.statusCode).toBe(200)
+    const result = response.json()
+
+    expect(result.analysis).toMatchObject({
+      duration: 8,
+      bpm: 120,
+      beats: [0, 0.5, 1]
+    })
+    expect(result.project.analysis).toMatchObject({ duration: 8, bpm: 120 })
+  })
+
+  it('requires an audio asset before analysis', async () => {
+    const project = await createProject()
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/projects/${project.id}/analyze`
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(response.json()).toEqual({
+      code: 'AUDIO_ASSET_REQUIRED',
+      message: 'Audio asset is required'
+    })
+  })
+
   it('returns not found for unknown projects', async () => {
     const response = await app.inject({
       method: 'GET',
@@ -138,6 +194,22 @@ describe('LyricPulse API', () => {
     })
 
     return response.json().project as { id: string }
+  }
+
+  async function uploadAsset(input: {
+    projectId: string
+    kind: string
+    filename: string
+    content: string
+  }) {
+    const body = createMultipartBody(input)
+
+    return app.inject({
+      method: 'POST',
+      url: `/api/projects/${input.projectId}/assets`,
+      headers: body.headers,
+      payload: body.payload
+    })
   }
 })
 

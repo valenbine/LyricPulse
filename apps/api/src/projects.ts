@@ -1,13 +1,14 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { AssetMetadata, Project } from '@lyricpulse/core'
+import type { AssetMetadata, AudioAnalysis, Project } from '@lyricpulse/core'
 
 export type ProjectStore = {
   createProject(input?: { title?: string; artist?: string }): Promise<Project>
   getProject(projectId: string): Promise<Project | undefined>
   saveProject(project: Project): Promise<Project>
   addAsset(projectId: string, asset: AssetMetadata): Promise<Project>
+  saveAnalysis(projectId: string, analysis: AudioAnalysis): Promise<Project>
 }
 
 export function createProjectStore(storageRoot: string): ProjectStore {
@@ -71,6 +72,18 @@ export function createProjectStore(storageRoot: string): ProjectStore {
       return this.saveProject({
         ...project,
         assets: [...project.assets, asset]
+      })
+    },
+    async saveAnalysis(projectId, analysis) {
+      const project = await readProject(projectId)
+
+      if (!project) {
+        throw new Error(`Project ${projectId} was not found`)
+      }
+
+      return this.saveProject({
+        ...project,
+        analysis
       })
     }
   }
