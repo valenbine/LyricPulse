@@ -1,0 +1,14 @@
+import { describe, expect, it } from 'vitest'
+import { getCompositionId, getVideoDimensions } from './dimensions'
+
+describe('video dimensions', () => {
+  it('maps vertical and wide ratios to deterministic dimensions', () => {
+    expect(getVideoDimensions('9:16')).toEqual({ width: 1080, height: 1920 })
+    expect(getVideoDimensions('16:9')).toEqual({ width: 1920, height: 1080 })
+  })
+
+  it('creates stable composition ids', () => {
+    expect(getCompositionId('PulseCover', '9:16')).toBe('PulseCover-9x16')
+    expect(getCompositionId('NeonLyric', '16:9')).toBe('NeonLyric-16x9')
+  })
+})

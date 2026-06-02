@@ -36,13 +36,13 @@ Updated: 2026-06-02
 
 ## Phase 5: Remotion Video Package
 
-1. Configure Remotion in `packages/video`.
-2. Implement shared template input contract using `LyricVideoConfig`.
-3. Build `PulseCover` with cover breathing, lyric pulse, and beat impact.
-4. Build `NeonLyric` with glowing lyrics, animated gradients, and music-reactive intensity.
-5. Build `WaveformStage` with waveform stage layout, blurred cover background, and lyric progression.
-6. Support both `9:16` and `16:9` dimensions in every template.
-7. Add smoke tests or render checks for each template and ratio.
+1. [x] Configure Remotion in `packages/video`.
+2. [x] Implement shared template input contract using `LyricVideoConfig`.
+3. [x] Build `PulseCover` with cover breathing, lyric pulse, and beat impact.
+4. [x] Build `NeonLyric` with glowing lyrics, animated gradients, and music-reactive intensity.
+5. [x] Build `WaveformStage` with waveform stage layout, blurred cover background, and lyric progression.
+6. [x] Support both `9:16` and `16:9` dimensions in every template.
+7. [x] Add smoke tests or render checks for each template and ratio.
 
 ## Phase 6: Web Studio
 
