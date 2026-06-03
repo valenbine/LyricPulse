@@ -8,6 +8,11 @@ import { ApiError, createErrorPayload } from './errors'
 import { createProjectStore } from './projects'
 import { getAssetKind, saveUploadedAsset } from './uploads'
 import { analyzeProjectAudio } from './analysis'
+import {
+  createRenderJob,
+  createRenderJobDownload,
+  getRenderJob
+} from './render-jobs'
 
 const createProjectBodySchema = z.object({
   title: z.string().min(1).optional(),
@@ -122,6 +127,75 @@ export function buildApp(config: Partial<ApiConfig> = {}) {
       project: projectSchema.parse(result.project)
     })
   })
+
+  app.post('/api/projects/:projectId/render', async (request, reply) => {
+    const params = z
+      .object({ projectId: z.string().min(1) })
+      .parse(request.params)
+    const project = await store.getProject(params.projectId)
+
+    if (!project) {
+      throw new ApiError(404, 'PROJECT_NOT_FOUND', 'Project was not found')
+    }
+
+    const job = await createRenderJob({
+      storageRoot: apiConfig.storageRoot,
+      store,
+      project,
+      body: request.body,
+      renderLyricVideo: apiConfig.renderLyricVideo,
+      muxVideoWithAudio: apiConfig.muxVideoWithAudio
+    })
+
+    reply.code(201).send({ job })
+  })
+
+  app.get('/api/projects/:projectId/render/:jobId', async (request) => {
+    const params = z
+      .object({ projectId: z.string().min(1), jobId: z.string().min(1) })
+      .parse(request.params)
+    const project = await store.getProject(params.projectId)
+
+    if (!project) {
+      throw new ApiError(404, 'PROJECT_NOT_FOUND', 'Project was not found')
+    }
+
+    const job = await getRenderJob({
+      storageRoot: apiConfig.storageRoot,
+      projectId: params.projectId,
+      jobId: params.jobId
+    })
+
+    return { job }
+  })
+
+  app.get(
+    '/api/projects/:projectId/render/:jobId/download',
+    async (request, reply) => {
+      const params = z
+        .object({ projectId: z.string().min(1), jobId: z.string().min(1) })
+        .parse(request.params)
+      const project = await store.getProject(params.projectId)
+
+      if (!project) {
+        throw new ApiError(404, 'PROJECT_NOT_FOUND', 'Project was not found')
+      }
+
+      const output = await createRenderJobDownload({
+        storageRoot: apiConfig.storageRoot,
+        projectId: params.projectId,
+        jobId: params.jobId
+      })
+
+      reply
+        .header('Content-Type', 'video/mp4')
+        .header(
+          'Content-Disposition',
+          `attachment; filename="${output.filename}"`
+        )
+        .send(output.buffer)
+    }
+  )
 
   return app
 }

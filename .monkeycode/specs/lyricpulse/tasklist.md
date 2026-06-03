@@ -46,28 +46,28 @@ Updated: 2026-06-02
 
 ## Phase 6: Web Studio
 
-1. Create React + Vite + TypeScript app.
-2. Install and configure Tailwind CSS, shadcn/ui, and Framer Motion.
-3. Configure Vite proxy for `/api` and allowed hosts for `.monkeycode-ai.online`.
-4. Build Landing / Studio entry page with deep music workstation visual style.
-5. Build upload flow for audio, LRC, and cover assets with validation feedback.
-6. Build editor layout with template selector, ratio selector, theme controls, preview canvas, lyric timeline, and audio analysis status.
-7. Build render result view with MP4 preview, download action, and return-to-edit action.
+1. [x] Create React + Vite + TypeScript app.
+2. [x] Install and configure Tailwind CSS, shadcn/ui, and Framer Motion.
+3. [x] Configure Vite proxy for `/api` and allowed hosts for `.monkeycode-ai.online`.
+4. [x] Build Landing / Studio entry page with deep music workstation visual style.
+5. [x] Build upload flow for audio, LRC, and cover assets with validation feedback.
+6. [x] Build editor layout with template selector, ratio selector, theme controls, preview canvas, lyric timeline, and audio analysis status.
+7. [x] Build render result view with MP4 preview, download action, and return-to-edit action.
 
 ## Phase 7: Rendering Workflow
 
-1. Implement render job creation in the API.
-2. Invoke Remotion Renderer with project configuration and selected template.
-3. Compose generated visuals with source audio into MP4 output.
-4. Track render job status and progress for the Studio.
-5. Expose output metadata and download endpoint.
-6. Add retry handling for failed render jobs.
+1. [x] Implement render job creation in the API.
+2. [x] Invoke Remotion Renderer with project configuration and selected template.
+3. [x] Compose generated visuals with source audio into MP4 output.
+4. [x] Track render job status and progress for the Studio.
+5. [x] Expose output metadata and download endpoint.
+6. [x] Add retry handling for failed render jobs.
 
 ## Phase 8: Verification And Polish
 
-1. Run monorepo lint, typecheck, tests, and build.
-2. Run local end-to-end smoke flow with sample audio, LRC, and cover files.
-3. Verify both `9:16` and `16:9` MP4 export.
-4. Verify the three templates respond to audio analysis data.
-5. Add README setup instructions for local open-source usage.
-6. Document SaaS extension points for storage provider, render provider, job queue, and user history.
+1. [x] Run monorepo lint, typecheck, tests, and build.
+2. [x] Run local end-to-end smoke flow with sample audio, LRC, and cover files.
+3. [x] Verify both `9:16` and `16:9` MP4 export.
+4. [x] Verify the three templates respond to audio analysis data.
+5. [x] Add README setup instructions for local open-source usage.
+6. [x] Document SaaS extension points for storage provider, render provider, job queue, and user history.

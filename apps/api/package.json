@@ -14,6 +14,7 @@
     "@fastify/multipart": "^9.3.0",
     "@lyricpulse/audio-analysis": "workspace:*",
     "@lyricpulse/core": "workspace:*",
+    "@lyricpulse/video": "workspace:*",
     "fastify": "^5.6.2",
     "tsx": "^4.21.0",
     "zod": "^4.2.1"

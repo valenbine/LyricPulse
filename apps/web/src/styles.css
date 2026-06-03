@@ -1,0 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Righteous&display=swap');
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-display: 'Righteous', sans-serif;
+  --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  --color-background: hsl(240 41% 7%);
+  --color-foreground: hsl(210 40% 98%);
+  --color-card: hsl(241 38% 12%);
+  --color-card-foreground: hsl(210 40% 98%);
+  --color-popover: hsl(241 38% 12%);
+  --color-popover-foreground: hsl(210 40% 98%);
+  --color-primary: hsl(252 84% 67%);
+  --color-primary-foreground: hsl(240 41% 7%);
+  --color-secondary: hsl(234 50% 34%);
+  --color-secondary-foreground: hsl(210 40% 98%);
+  --color-muted: hsl(240 24% 18%);
+  --color-muted-foreground: hsl(226 18% 70%);
+  --color-accent: hsl(142 71% 45%);
+  --color-accent-foreground: hsl(240 41% 7%);
+  --color-destructive: hsl(0 84% 60%);
+  --color-destructive-foreground: hsl(210 40% 98%);
+  --color-border: hsl(240 23% 24%);
+  --color-input: hsl(240 23% 24%);
+  --color-ring: hsl(252 84% 67%);
+  --radius-lg: 1rem;
+  --radius-md: 0.75rem;
+  --radius-sm: 0.5rem;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+  background:
+    radial-gradient(
+      circle at 20% 15%,
+      rgba(99, 102, 241, 0.28),
+      transparent 30rem
+    ),
+    radial-gradient(
+      circle at 82% 18%,
+      rgba(34, 197, 94, 0.18),
+      transparent 28rem
+    ),
+    radial-gradient(
+      circle at 50% 90%,
+      rgba(217, 70, 239, 0.14),
+      transparent 34rem
+    ),
+    #09091a;
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(34, 197, 94, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

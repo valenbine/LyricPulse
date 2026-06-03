@@ -1,12 +1,22 @@
 # LyricPulse
 
-LyricPulse is a web application for generating dynamic lyric videos from uploaded audio, LRC lyrics, and cover artwork.
+LyricPulse is a local-first web app for generating dynamic lyric videos from uploaded audio, LRC lyrics, and cover artwork. The first version runs fully on your machine with a React Studio, a Fastify API, Remotion video templates, and FFmpeg-based audio processing.
 
-## Planned Stack
+## Features
+
+- Upload MP3, WAV, FLAC, or M4A audio.
+- Upload line-timed LRC lyrics.
+- Upload JPG, PNG, or WEBP cover artwork.
+- Analyze audio duration and loudness with FFmpeg, with replaceable adapters for BPM, beats, and frequency bands.
+- Edit lyric video settings in a Chinese dark music workstation UI.
+- Export MP4 lyric videos in `9:16` and `16:9`.
+- Render with three built-in Remotion templates: `PulseCover`, `NeonLyric`, and `WaveformStage`.
+
+## Stack
 
 - Monorepo: pnpm + Turborepo
 - Web Studio: React + Vite + TypeScript
-- UI: Tailwind CSS + shadcn/ui + Framer Motion
+- UI: Tailwind CSS + shadcn/ui-style local components + Framer Motion
 - API: Node.js + Fastify
 - Video: Remotion + FFmpeg
 - Shared logic: TypeScript + Zod
@@ -14,24 +24,106 @@ LyricPulse is a web application for generating dynamic lyric videos from uploade
 ## Workspace Layout
 
 ```text
-apps/web
-apps/api
-packages/core
-packages/video
-packages/audio-analysis
-storage/uploads
-storage/outputs
-storage/analysis
+apps/web                  React Studio
+apps/api                  Fastify API and render orchestration
+packages/core             Shared types, schemas, and LRC parser
+packages/video            Remotion templates and renderer helper
+packages/audio-analysis   FFmpeg analysis helpers and command runner
+storage/uploads           Local uploaded assets
+storage/outputs           Local rendered MP4 files
+storage/analysis          Local audio analysis JSON files
 ```
 
-## Development
+## Requirements
+
+- Node.js 22+
+- pnpm 11+
+- FFmpeg and ffprobe available on `PATH`
+
+On Debian or Ubuntu, install FFmpeg with:
 
 ```bash
-# Install dependencies
-pnpm install
+DEBIAN_FRONTEND=noninteractive apt-get install -y ffmpeg
+```
 
-# Run all checks
+Remotion downloads a Chrome Headless Shell on first render. Minimal Linux environments may also need browser runtime libraries such as `libnspr4` and `libnss3`.
+
+```bash
+DEBIAN_FRONTEND=noninteractive apt-get install -y libnspr4 libnss3
+```
+
+## Local Development
+
+Install dependencies:
+
+```bash
+pnpm install
+```
+
+Start the API:
+
+```bash
+pnpm --filter @lyricpulse/api dev
+```
+
+Start the Web Studio:
+
+```bash
+pnpm --filter @lyricpulse/web dev
+```
+
+The Vite dev server proxies `/api` requests to `http://localhost:3001`, so the browser can use the Web Studio as the single entry point.
+
+## Usage Flow
+
+1. Open the Web Studio.
+2. Create a project by entering a title and artist.
+3. Upload one audio file, one LRC file, and one cover image.
+4. Run audio analysis.
+5. Choose `PulseCover`, `NeonLyric`, or `WaveformStage`.
+6. Choose `9:16` or `16:9`.
+7. Adjust theme and effect controls.
+8. Start rendering and download the generated MP4.
+
+## Validation
+
+Run the full local check suite:
+
+```bash
 pnpm typecheck
 pnpm lint
 pnpm test
+pnpm format
+pnpm build
 ```
+
+Phase 8 smoke validation generated all six template and ratio combinations with a temporary 3-second audio sample:
+
+```text
+PulseCover-9x16       h264 1080x1920 + aac audio
+PulseCover-16x9       h264 1920x1080 + aac audio
+NeonLyric-9x16        h264 1080x1920 + aac audio
+NeonLyric-16x9        h264 1920x1080 + aac audio
+WaveformStage-9x16    h264 1080x1920 + aac audio
+WaveformStage-16x9    h264 1920x1080 + aac audio
+```
+
+## SaaS Extension Points
+
+LyricPulse currently uses local files and local rendering. The project model and package boundaries preserve the following SaaS extension points.
+
+### Storage Provider
+
+Local files live under `storage/uploads`, `storage/analysis`, and `storage/outputs`. A SaaS implementation can replace these paths with an object storage provider such as S3, R2, OSS, or GCS while keeping the same asset metadata shape from `packages/core`.
+
+### Render Provider
+
+`apps/api` invokes `@lyricpulse/video/render` for local Remotion rendering. A cloud render provider can implement the same render input contract, execute jobs in isolated workers, and return output metadata to the API.
+
+### Job Queue
+
+Render jobs are stored as local JSON status records. A queued deployment can move job creation and progress updates into Redis, BullMQ, SQS, or another queue while preserving the `RenderJob` status lifecycle.
+
+### User History
+
+Projects are stored locally in the first version. A SaaS version can attach projects, assets, analysis records, and render outputs to authenticated users while keeping the current project configuration schema.

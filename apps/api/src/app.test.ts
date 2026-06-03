@@ -1,9 +1,13 @@
-import { mkdtemp } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import type { AnalyzeAudioFunction } from './analysis'
+import type {
+  MuxVideoWithAudioFunction,
+  RenderLyricVideoFunction
+} from './render-jobs'
 import { buildApp } from './app'
 
 describe('LyricPulse API', () => {
@@ -26,7 +30,24 @@ describe('LyricPulse API', () => {
         }
       ]
     })
-    app = buildApp({ storageRoot, analyzeAudio })
+    const renderLyricVideo: RenderLyricVideoFunction = async (input) => {
+      await mkdir(dirname(input.outputLocation), { recursive: true })
+      await writeFile(input.outputLocation, 'fake visual mp4 bytes')
+    }
+    const muxVideoWithAudio: MuxVideoWithAudioFunction = async (input) => {
+      await mkdir(dirname(input.outputPath), { recursive: true })
+      await writeFile(
+        input.outputPath,
+        `muxed:${input.visualVideoPath}:${input.audioPath}`
+      )
+    }
+
+    app = buildApp({
+      storageRoot,
+      analyzeAudio,
+      renderLyricVideo,
+      muxVideoWithAudio
+    })
     await app.ready()
   })
 
@@ -173,6 +194,82 @@ describe('LyricPulse API', () => {
     })
   })
 
+  it('creates render jobs and exposes finished MP4 downloads', async () => {
+    const project = await createProject()
+    await uploadAsset({
+      projectId: project.id,
+      kind: 'audio',
+      filename: 'song.mp3',
+      content: 'fake audio bytes'
+    })
+    await uploadAsset({
+      projectId: project.id,
+      kind: 'lyrics',
+      filename: 'song.lrc',
+      content: '[00:01.00]First line\n[00:03.50]Second line'
+    })
+    await uploadAsset({
+      projectId: project.id,
+      kind: 'cover',
+      filename: 'cover.png',
+      content: 'fake cover bytes'
+    })
+    await app.inject({
+      method: 'POST',
+      url: `/api/projects/${project.id}/analyze`
+    })
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: `/api/projects/${project.id}/render`,
+      payload: {
+        ratio: '9:16',
+        templateId: 'NeonLyric',
+        theme: {
+          primaryColor: '#8B5CF6',
+          accentColor: '#22C55E',
+          backgroundIntensity: 0.85,
+          fontFamily: 'Poppins, sans-serif'
+        },
+        effect: {
+          lyricGlow: 0.8,
+          pulseIntensity: 0.75,
+          beatImpact: 0.7
+        }
+      }
+    })
+
+    expect(createResponse.statusCode).toBe(201)
+    const createdJob = createResponse.json().job
+
+    expect(createdJob).toMatchObject({
+      projectId: project.id,
+      status: 'created',
+      progress: 0,
+      config: {
+        ratio: '9:16',
+        templateId: 'NeonLyric'
+      }
+    })
+
+    const finishedJob = await waitForRenderJob(project.id, createdJob.id)
+
+    expect(finishedJob).toMatchObject({
+      status: 'succeeded',
+      progress: 1
+    })
+
+    const downloadResponse = await app.inject({
+      method: 'GET',
+      url: `/api/projects/${project.id}/render/${createdJob.id}/download`
+    })
+
+    expect(downloadResponse.statusCode).toBe(200)
+    expect(downloadResponse.headers['content-type']).toContain('video/mp4')
+    expect(downloadResponse.body).toContain('.visual.mp4')
+    expect(downloadResponse.body).toContain('/uploads/')
+  })
+
   it('returns not found for unknown projects', async () => {
     const response = await app.inject({
       method: 'GET',
@@ -210,6 +307,24 @@ describe('LyricPulse API', () => {
       headers: body.headers,
       payload: body.payload
     })
+  }
+
+  async function waitForRenderJob(projectId: string, jobId: string) {
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/projects/${projectId}/render/${jobId}`
+      })
+      const job = response.json().job
+
+      if (job.status === 'succeeded' || job.status === 'failed') {
+        return job
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+
+    throw new Error('Render job did not finish')
   }
 })
 

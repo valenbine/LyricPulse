@@ -112,6 +112,7 @@ export type Project = {
 export type RenderJob = {
   id: string
   projectId: string
+  config: LyricVideoConfig
   status: RenderJobStatus
   progress: number
   outputPath?: string

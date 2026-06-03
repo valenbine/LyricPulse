@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./render": "./src/render.ts",
     "./root": "./src/root.tsx"
   },
   "scripts": {
@@ -15,6 +16,7 @@
   },
   "dependencies": {
     "@lyricpulse/core": "workspace:*",
+    "@remotion/bundler": "^4.0.470",
     "@remotion/cli": "^4.0.390",
     "@remotion/renderer": "^4.0.390",
     "react": "^19.2.3",

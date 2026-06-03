@@ -107,6 +107,7 @@ export const projectSchema = z.object({
 export const renderJobSchema = z.object({
   id: idSchema,
   projectId: idSchema,
+  config: lyricVideoConfigSchema,
   status: renderJobStatusSchema,
   progress: z.number().min(0).max(1),
   outputPath: z.string().min(1).optional(),
