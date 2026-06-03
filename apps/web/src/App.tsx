@@ -49,6 +49,13 @@ import { cn } from './lib/utils'
 
 type UploadState = Record<AssetKind, File | undefined>
 
+type RenderHistoryItem = {
+  id: string
+  templateId: TemplateId
+  ratio: VideoRatio
+  createdAt: string
+}
+
 const acceptedFormats: Record<AssetKind, readonly string[]> = {
   audio: audioFormats,
   lyrics: lyricFormats,
@@ -91,6 +98,7 @@ export function App() {
   const [themeIndex, setThemeIndex] = useState(0)
   const [status, setStatus] = useState('准备生成音乐响应式歌词视频。')
   const [renderJob, setRenderJob] = useState<RenderJob | undefined>()
+  const [renderHistory, setRenderHistory] = useState<RenderHistoryItem[]>([])
   const [isRendering, setIsRendering] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | undefined>()
@@ -98,6 +106,8 @@ export function App() {
   const canUpload = Boolean(uploads.audio && uploads.lyrics && uploads.cover)
   const selectedTheme = themePresets[themeIndex]
   const lyrics = project?.lyrics ?? sampleLyrics
+  const renderReadiness = getRenderReadiness(project)
+
   async function handleCreateStudioProject() {
     if (!canUpload || isUploading) {
       return
@@ -140,6 +150,15 @@ export function App() {
       return
     }
 
+    const readiness = getRenderReadiness(project)
+
+    if (readiness.issues.length > 0) {
+      const message = `渲染前还需要处理：${readiness.issues.join('、')}`
+      setError(message)
+      setStatus('渲染准备未完成。')
+      return
+    }
+
     setIsRendering(true)
     setError(undefined)
     setStatus('正在创建渲染任务...')
@@ -166,8 +185,25 @@ export function App() {
       setRenderJob(created.job)
       setStatus('渲染任务已创建，正在生成 MP4...')
 
-      const finished = await pollRenderJob(project.id, created.job.id)
+      const finished = await pollRenderJob(
+        project.id,
+        created.job.id,
+        (job) => {
+          setRenderJob(job)
+        }
+      )
       setRenderJob(finished)
+      if (finished.status === 'succeeded') {
+        setRenderHistory((current) => [
+          {
+            id: finished.id,
+            templateId: finished.config.templateId,
+            ratio: finished.config.ratio,
+            createdAt: finished.updatedAt
+          },
+          ...current.filter((item) => item.id !== finished.id)
+        ])
+      }
       setStatus(
         finished.status === 'succeeded'
           ? 'MP4 已生成，可以预览和下载。'
@@ -229,6 +265,8 @@ export function App() {
         <RenderPanel
           project={project}
           renderJob={renderJob}
+          renderReadiness={renderReadiness}
+          renderHistory={renderHistory}
           isRendering={isRendering}
           onRender={handleStartRender}
         />
@@ -788,11 +826,15 @@ function AnalysisPanel({
 function RenderPanel({
   project,
   renderJob,
+  renderReadiness,
+  renderHistory,
   isRendering,
   onRender
 }: {
   project?: Project
   renderJob?: RenderJob
+  renderReadiness: RenderReadiness
+  renderHistory: RenderHistoryItem[]
   isRendering: boolean
   onRender: () => void
 }) {
@@ -800,54 +842,119 @@ function RenderPanel({
     project && renderJob?.status === 'succeeded'
       ? `/api/projects/${project.id}/render/${renderJob.id}/download`
       : undefined
+  const canRender = Boolean(project && renderReadiness.issues.length === 0)
+  const isRetry = renderJob?.status === 'failed'
 
   return (
     <Card className="overflow-hidden">
-      <CardContent className="grid gap-5 p-5 md:grid-cols-[1fr_auto] md:items-center">
-        <div className="flex items-start gap-4">
-          <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-primary/20 text-primary">
-            <Film className="size-5" aria-hidden="true" />
+      <CardContent className="space-y-5 p-5">
+        <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
+          <div className="flex items-start gap-4">
+            <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-primary/20 text-primary">
+              <Film className="size-5" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold">渲染结果</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+                创建本地渲染任务后，系统会调用 Remotion 生成
+                MP4。任务完成后可直接预览和下载。
+              </p>
+              {renderJob ? (
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  <span className="rounded-full border border-white/10 px-3 py-1.5">
+                    状态：{translateRenderStatus(renderJob.status)}
+                  </span>
+                  <span className="rounded-full border border-white/10 px-3 py-1.5">
+                    进度：{Math.round(renderJob.progress * 100)}%
+                  </span>
+                  <span className="rounded-full border border-white/10 px-3 py-1.5">
+                    模板：{templateCopy[renderJob.config.templateId].label}
+                  </span>
+                  <span className="rounded-full border border-white/10 px-3 py-1.5">
+                    画幅：{renderJob.config.ratio}
+                  </span>
+                </div>
+              ) : null}
+              {renderJob?.failureReason ? (
+                <p className="mt-3 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  {renderJob.failureReason}
+                </p>
+              ) : null}
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-semibold">渲染结果</h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-              创建本地渲染任务后，系统会调用 Remotion 生成
-              MP4。任务完成后可直接预览和下载。
-            </p>
-            {renderJob ? (
-              <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                <span className="rounded-full border border-white/10 px-3 py-1.5">
-                  状态：{translateRenderStatus(renderJob.status)}
-                </span>
-                <span className="rounded-full border border-white/10 px-3 py-1.5">
-                  进度：{Math.round(renderJob.progress * 100)}%
-                </span>
-              </div>
-            ) : null}
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={!canRender || isRendering} onClick={onRender}>
+              {isRendering ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Film className="size-4" aria-hidden="true" />
+              )}
+              {isRetry ? '重新渲染' : '开始渲染'}
+            </Button>
+            <Button
+              asLink
+              variant="secondary"
+              disabled={!downloadUrl}
+              href={downloadUrl}
+            >
+              <Play className="size-4" aria-hidden="true" />
+              预览 MP4
+            </Button>
+            <Button asLink disabled={!downloadUrl} href={downloadUrl} download>
+              <Download className="size-4" aria-hidden="true" />
+              下载
+            </Button>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button disabled={!project || isRendering} onClick={onRender}>
-            {isRendering ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+
+        <div className="grid gap-3 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="rounded-3xl border border-white/10 bg-white/6 p-4">
+            <p className="mb-3 text-sm font-semibold text-foreground">
+              渲染前检查
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {renderReadiness.checks.map((check) => (
+                <div
+                  key={check.label}
+                  className={cn(
+                    'rounded-2xl border px-3 py-2 text-xs',
+                    check.done
+                      ? 'border-accent/30 bg-accent/10 text-accent'
+                      : 'border-white/10 bg-black/20 text-muted-foreground'
+                  )}
+                >
+                  {check.done ? '已完成' : '待完成'}：{check.label}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/6 p-4">
+            <p className="mb-3 text-sm font-semibold text-foreground">
+              最近导出
+            </p>
+            {renderHistory.length > 0 && project ? (
+              <div className="space-y-2">
+                {renderHistory.slice(0, 4).map((item) => (
+                  <a
+                    key={item.id}
+                    className="flex min-h-12 cursor-pointer items-center justify-between rounded-2xl border border-white/10 px-3 text-xs text-muted-foreground transition hover:border-accent/40 hover:bg-accent/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    href={`/api/projects/${project.id}/render/${item.id}/download`}
+                    download
+                  >
+                    <span>
+                      {templateCopy[item.templateId].label} · {item.ratio}
+                    </span>
+                    <span>{formatDateTime(item.createdAt)}</span>
+                  </a>
+                ))}
+              </div>
             ) : (
-              <Film className="size-4" aria-hidden="true" />
+              <p className="text-xs leading-5 text-muted-foreground">
+                成功渲染后会在这里保留下载入口，方便连续导出不同模板和画幅。
+              </p>
             )}
-            开始渲染
-          </Button>
-          <Button
-            asLink
-            variant="secondary"
-            disabled={!downloadUrl}
-            href={downloadUrl}
-          >
-            <Play className="size-4" aria-hidden="true" />
-            预览 MP4
-          </Button>
-          <Button asLink disabled={!downloadUrl} href={downloadUrl} download>
-            <Download className="size-4" aria-hidden="true" />
-            下载
-          </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -856,10 +963,12 @@ function RenderPanel({
 
 async function pollRenderJob(
   projectId: string,
-  jobId: string
+  jobId: string,
+  onUpdate: (job: RenderJob) => void
 ): Promise<RenderJob> {
   for (let attempt = 0; attempt < 180; attempt += 1) {
     const { job } = await getRenderJob(projectId, jobId)
+    onUpdate(job)
 
     if (job.status === 'succeeded' || job.status === 'failed') {
       return job
@@ -869,6 +978,35 @@ async function pollRenderJob(
   }
 
   throw new Error('渲染任务超时')
+}
+
+type RenderReadiness = {
+  checks: Array<{ label: string; done: boolean }>
+  issues: string[]
+}
+
+function getRenderReadiness(project?: Project): RenderReadiness {
+  const checks = [
+    { label: '项目已创建', done: Boolean(project) },
+    {
+      label: '音频已上传',
+      done: Boolean(project?.assets.some((asset) => asset.kind === 'audio'))
+    },
+    {
+      label: '歌词已解析',
+      done: Boolean(project?.lyrics.length)
+    },
+    {
+      label: '封面已上传',
+      done: Boolean(project?.assets.some((asset) => asset.kind === 'cover'))
+    },
+    { label: '音频分析已完成', done: Boolean(project?.analysis) }
+  ]
+
+  return {
+    checks,
+    issues: checks.filter((check) => !check.done).map((check) => check.label)
+  }
 }
 
 function translateRenderStatus(status: RenderJob['status']) {
@@ -887,6 +1025,15 @@ function formatTime(seconds: number) {
   const minutes = Math.floor(seconds / 60)
   const remainder = Math.floor(seconds % 60)
   return `${minutes}:${remainder.toString().padStart(2, '0')}`
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(value))
 }
 
 const sampleLyrics = [
