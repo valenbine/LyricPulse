@@ -32,12 +32,22 @@ export function getAnalysisFrame(
     }
   }
 
-  return frames.reduce((closest, frame) => {
-    const closestDistance = Math.abs(closest.time - currentTime)
-    const frameDistance = Math.abs(frame.time - currentTime)
+  const nextIndex = findFrameInsertionIndex(frames, currentTime)
 
-    return frameDistance < closestDistance ? frame : closest
-  }, frames[0] as AudioAnalysisFrame)
+  if (nextIndex === 0) {
+    return frames[0] as AudioAnalysisFrame
+  }
+
+  if (nextIndex >= frames.length) {
+    return frames[frames.length - 1] as AudioAnalysisFrame
+  }
+
+  const previous = frames[nextIndex - 1] as AudioAnalysisFrame
+  const next = frames[nextIndex] as AudioAnalysisFrame
+  const previousDistance = Math.abs(previous.time - currentTime)
+  const nextDistance = Math.abs(next.time - currentTime)
+
+  return nextDistance < previousDistance ? next : previous
 }
 
 export function getPlaybackTime(frame: number, fps: number): number {
@@ -49,4 +59,25 @@ export function getDurationInFrames(
   fps: number
 ): number {
   return Math.max(1, Math.ceil(config.analysis.duration * fps))
+}
+
+function findFrameInsertionIndex(
+  frames: AudioAnalysisFrame[],
+  currentTime: number
+) {
+  let low = 0
+  let high = frames.length
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    const frame = frames[middle] as AudioAnalysisFrame
+
+    if (frame.time < currentTime) {
+      low = middle + 1
+    } else {
+      high = middle
+    }
+  }
+
+  return low
 }

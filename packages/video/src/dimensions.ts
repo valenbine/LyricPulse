@@ -13,6 +13,10 @@ export function getVideoDimensions(ratio: VideoRatio): VideoDimensions {
   return { width: 1080, height: 1920 }
 }
 
+export function getRenderDimensions(ratio: VideoRatio): VideoDimensions {
+  return getVideoDimensions(ratio)
+}
+
 export function getCompositionId(
   templateId: string,
   ratio: VideoRatio

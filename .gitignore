@@ -188,3 +188,11 @@ storage/outputs/*
 !storage/outputs/.gitkeep
 storage/analysis/*
 !storage/analysis/.gitkeep
+storage/projects/*
+!storage/projects/.gitkeep
+storage/render-jobs/*
+!storage/render-jobs/.gitkeep
+storage/preview-audio/*
+!storage/preview-audio/.gitkeep
+storage/templates/*
+!storage/templates/.gitkeep

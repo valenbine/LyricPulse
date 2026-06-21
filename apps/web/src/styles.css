@@ -1,11 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Righteous&display=swap');
 @import 'tailwindcss';
 
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-display: 'Righteous', sans-serif;
-  --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Noto Sans CJK SC', 'Noto Sans SC', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Noto Sans CJK SC', 'Noto Sans SC', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
   --color-background: hsl(240 41% 7%);
   --color-foreground: hsl(210 40% 98%);
   --color-card: hsl(241 38% 12%);
@@ -58,6 +57,7 @@ body {
     #09091a;
   color: var(--color-foreground);
   font-family: var(--font-sans);
+  caret-color: transparent;
 }
 
 button,
@@ -66,8 +66,76 @@ select {
   font: inherit;
 }
 
+input,
+textarea,
+select,
+[contenteditable='true'] {
+  caret-color: var(--color-foreground);
+}
+
 ::selection {
   background: rgba(34, 197, 94, 0.35);
+}
+
+.animate-preview-enter {
+  animation: preview-enter 450ms ease-out both;
+}
+
+.animate-preview-orb {
+  animation: preview-orb 2.4s ease-in-out infinite;
+}
+
+.animate-preview-line {
+  animation: preview-line 1.5s ease-in-out infinite;
+}
+
+.animate-preview-bar {
+  animation: preview-bar 1.2s ease-in-out infinite;
+}
+
+@keyframes preview-enter {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes preview-orb {
+  0%,
+  100% {
+    transform: translateX(-50%) scale(1) rotate(0deg);
+  }
+
+  50% {
+    transform: translateX(-50%) scale(1.08) rotate(3deg);
+  }
+}
+
+@keyframes preview-line {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  50% {
+    transform: translateX(4px);
+  }
+}
+
+@keyframes preview-bar {
+  0%,
+  100% {
+    transform: scaleY(0.75);
+  }
+
+  50% {
+    transform: scaleY(1.45);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

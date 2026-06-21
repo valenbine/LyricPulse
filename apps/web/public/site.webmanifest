@@ -1,0 +1,22 @@
+{
+  "name": "LyricPulse Studio",
+  "short_name": "LyricPulse",
+  "description": "根据音频、LRC 歌词和封面图生成动态歌词视频。",
+  "theme_color": "#08111f",
+  "background_color": "#08111f",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "/icons/favicon-48.svg",
+      "sizes": "48x48",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

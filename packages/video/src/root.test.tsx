@@ -13,14 +13,11 @@ describe('RemotionRoot', () => {
     const definitions = getCompositionDefinitions()
 
     expect(definitions).toHaveLength(templateIds.length * videoRatios.length)
-    expect(definitions.map((definition) => definition.id)).toEqual([
-      'PulseCover-9x16',
-      'PulseCover-16x9',
-      'NeonLyric-9x16',
-      'NeonLyric-16x9',
-      'WaveformStage-9x16',
-      'WaveformStage-16x9'
-    ])
+    expect(definitions.map((definition) => definition.id)).toEqual(
+      templateIds.flatMap((templateId) =>
+        videoRatios.map((ratio) => `${templateId}-${ratio.replace(':', 'x')}`)
+      )
+    )
   })
 
   it('creates a root React element', () => {

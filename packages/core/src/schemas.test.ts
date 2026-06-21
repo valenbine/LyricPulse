@@ -27,8 +27,11 @@ const config = {
   templateId: 'PulseCover',
   title: 'Song Title',
   artist: 'Artist',
+  artistEnglish: 'ARTIST',
   audioAssetId: 'asset-audio',
+  audioUrl: 'https://example.com/audio.mp3',
   coverAssetId: 'asset-cover',
+  coverUrl: 'https://example.com/cover.jpg',
   lyrics: [
     {
       id: 'line-1',
@@ -46,7 +49,8 @@ const config = {
   effect: {
     lyricGlow: 0.7,
     pulseIntensity: 0.8,
-    beatImpact: 0.6
+    beatImpact: 0.6,
+    stageLighting: 0.75
   }
 }
 
@@ -81,5 +85,18 @@ describe('schemas', () => {
     expect(
       renderJobRequestSchema.parse({ projectId: 'project-1', config })
     ).toEqual({ projectId: 'project-1', config })
+  })
+
+  it('fills default stage lighting for legacy configs', () => {
+    const parsed = lyricVideoConfigSchema.parse({
+      ...config,
+      effect: {
+        lyricGlow: 0.7,
+        pulseIntensity: 0.8,
+        beatImpact: 0.6
+      }
+    })
+
+    expect(parsed.effect.stageLighting).toBe(0.75)
   })
 })

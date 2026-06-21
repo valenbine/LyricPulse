@@ -8,6 +8,8 @@ export const sampleLyricVideoConfig: LyricVideoConfig = {
   artist: 'Demo Artist',
   audioAssetId: 'sample-audio',
   coverAssetId: 'sample-cover',
+  coverUrl:
+    'https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=1200&q=80',
   lyrics: [
     { id: 'line-1', startTime: 0, endTime: 3, text: 'Feel the pulse begin' },
     {
@@ -44,12 +46,14 @@ export const sampleLyricVideoConfig: LyricVideoConfig = {
     primaryColor: '#f8fafc',
     accentColor: '#a855f7',
     backgroundIntensity: 0.85,
-    fontFamily: 'Inter, Arial, sans-serif'
+    fontFamily:
+      'Noto Sans CJK SC, Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif'
   },
   effect: {
     lyricGlow: 0.8,
     pulseIntensity: 0.75,
-    beatImpact: 0.7
+    beatImpact: 0.7,
+    stageLighting: 0.75
   }
 }
 

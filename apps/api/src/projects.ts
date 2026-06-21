@@ -1,14 +1,20 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { AssetMetadata, AudioAnalysis, Project } from '@lyricpulse/core'
 
 export type ProjectStore = {
-  createProject(input?: { title?: string; artist?: string }): Promise<Project>
+  createProject(input?: {
+    title?: string
+    artist?: string
+    artistEnglish?: string
+  }): Promise<Project>
+  listProjects(): Promise<Project[]>
   getProject(projectId: string): Promise<Project | undefined>
   saveProject(project: Project): Promise<Project>
   addAsset(projectId: string, asset: AssetMetadata): Promise<Project>
   saveAnalysis(projectId: string, analysis: AudioAnalysis): Promise<Project>
+  deleteProject(projectId: string): Promise<boolean>
 }
 
 export function createProjectStore(storageRoot: string): ProjectStore {
@@ -48,6 +54,7 @@ export function createProjectStore(storageRoot: string): ProjectStore {
         id: randomUUID(),
         ...(input.title ? { title: input.title } : {}),
         ...(input.artist ? { artist: input.artist } : {}),
+        ...(input.artistEnglish ? { artistEnglish: input.artistEnglish } : {}),
         assets: [],
         lyrics: [],
         storageProvider: 'local',
@@ -57,6 +64,33 @@ export function createProjectStore(storageRoot: string): ProjectStore {
       }
 
       return writeProject(project)
+    },
+    async listProjects() {
+      try {
+        const files = await readdir(projectsRoot)
+        const projects = await Promise.all(
+          files
+            .filter((file) => file.endsWith('.json'))
+            .map((file) => readProject(file.replace(/\.json$/, '')))
+        )
+
+        return projects
+          .filter((project): project is Project => Boolean(project))
+          .sort(
+            (a, b) =>
+              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          )
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          'code' in error &&
+          error.code === 'ENOENT'
+        ) {
+          return []
+        }
+
+        throw error
+      }
     },
     getProject: readProject,
     async saveProject(project) {
@@ -85,6 +119,35 @@ export function createProjectStore(storageRoot: string): ProjectStore {
         ...project,
         analysis
       })
+    },
+    async deleteProject(projectId) {
+      const project = await readProject(projectId)
+
+      if (!project) {
+        return false
+      }
+
+      await Promise.all([
+        rm(projectPath(projectId), { force: true }),
+        rm(join(storageRoot, 'uploads', projectId), {
+          recursive: true,
+          force: true
+        }),
+        rm(join(storageRoot, 'preview-audio', projectId), {
+          recursive: true,
+          force: true
+        }),
+        rm(join(storageRoot, 'render-jobs', projectId), {
+          recursive: true,
+          force: true
+        }),
+        rm(join(storageRoot, 'outputs', projectId), {
+          recursive: true,
+          force: true
+        })
+      ])
+
+      return true
     }
   }
 }

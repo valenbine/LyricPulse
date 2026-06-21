@@ -1,4 +1,11 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rename,
+  stat,
+  writeFile
+} from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import {
@@ -7,6 +14,8 @@ import {
 } from '@lyricpulse/audio-analysis'
 import { renderLyricVideo as defaultRenderLyricVideo } from '@lyricpulse/video/render'
 import {
+  filterLyricsByArtistName,
+  formatArtistDisplay,
   lyricVideoConfigSchema,
   renderJobSchema,
   templateIdSchema,
@@ -15,11 +24,21 @@ import {
   type Project,
   type RenderJob
 } from '@lyricpulse/core'
+import { randomPosterShowsCover } from '@lyricpulse/video/random-poster-settings'
+import { z } from 'zod'
 import { ApiError } from './errors'
 import type { ProjectStore } from './projects'
 
 export type RenderLyricVideoFunction = typeof defaultRenderLyricVideo
 export type MuxVideoWithAudioFunction = typeof muxVideoWithAudio
+
+const renderTimeoutMs = resolveRenderTimeoutMs()
+const staleAfterMs = resolveStaleRenderThresholdMs(renderTimeoutMs)
+const renderHeartbeatMs = resolvePositiveNumber(
+  process.env.RENDER_HEARTBEAT_MS,
+  60 * 1000
+)
+const processStartedAt = Date.now()
 
 export async function createRenderJob(input: {
   storageRoot: string
@@ -29,7 +48,24 @@ export async function createRenderJob(input: {
   renderLyricVideo?: RenderLyricVideoFunction
   muxVideoWithAudio?: MuxVideoWithAudioFunction
 }) {
-  const config = buildRenderConfig(input.project, input.body)
+  const activeJob = await findActiveRenderJob({
+    storageRoot: input.storageRoot,
+    projectId: input.project.id
+  })
+
+  if (activeJob) {
+    throw new ApiError(
+      409,
+      'RENDER_JOB_IN_PROGRESS',
+      'A render job is already in progress for this project'
+    )
+  }
+
+  const config = await buildRenderConfig(
+    input.storageRoot,
+    input.project,
+    input.body
+  )
   const now = new Date().toISOString()
   const job: RenderJob = {
     id: randomUUID(),
@@ -73,6 +109,77 @@ export async function getRenderJob(input: {
   return job
 }
 
+export async function listRenderJobs(input: {
+  storageRoot: string
+  projectId: string
+}) {
+  const root = join(input.storageRoot, 'render-jobs', input.projectId)
+
+  try {
+    const files = await readdir(root)
+    const jobs = await Promise.all(
+      files
+        .filter((file) => file.endsWith('.json'))
+        .map((file) =>
+          readRenderJobSafely(
+            input.storageRoot,
+            input.projectId,
+            file.replace(/\.json$/, '')
+          )
+        )
+    )
+
+    return jobs
+      .filter((job): job is RenderJob => Boolean(job))
+      .map(markStaleRenderJob)
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      )
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+      return []
+    }
+
+    throw error
+  }
+}
+
+async function findActiveRenderJob(input: {
+  storageRoot: string
+  projectId: string
+}) {
+  const jobs = await listRenderJobs(input)
+
+  return jobs.find((job) =>
+    ['created', 'analyzing', 'rendering'].includes(job.status) &&
+    !isStaleRenderJob(job)
+  )
+}
+
+function isStaleRenderJob(job: RenderJob) {
+  if (!['created', 'analyzing', 'rendering'].includes(job.status)) {
+    return false
+  }
+
+  const updatedAtMs = new Date(job.updatedAt).getTime()
+
+  return updatedAtMs < processStartedAt || updatedAtMs < Date.now() - staleAfterMs
+}
+
+function markStaleRenderJob(job: RenderJob): RenderJob {
+  if (!isStaleRenderJob(job)) {
+    return job
+  }
+
+  return {
+    ...job,
+    status: 'failed',
+    progress: 1,
+    failureReason: 'Render process was interrupted before completion'
+  }
+}
+
 export async function createRenderJobDownload(input: {
   storageRoot: string
   projectId: string
@@ -88,13 +195,29 @@ export async function createRenderJobDownload(input: {
     )
   }
 
+  const absolutePath = join(input.storageRoot, job.outputPath)
+  const outputStat = await stat(absolutePath).catch(() => undefined)
+
+  if (!outputStat?.isFile()) {
+    throw new ApiError(
+      404,
+      'RENDER_OUTPUT_NOT_FOUND',
+      'Render output file was not found'
+    )
+  }
+
   return {
     filename: basename(job.outputPath),
-    buffer: await readFile(join(input.storageRoot, job.outputPath))
+    absolutePath,
+    sizeBytes: outputStat.size
   }
 }
 
-function buildRenderConfig(project: Project, body: unknown): LyricVideoConfig {
+async function buildRenderConfig(
+  storageRoot: string,
+  project: Project,
+  body: unknown
+): Promise<LyricVideoConfig> {
   const parsedBody = renderRequestBodySchema.parse(body ?? {})
   const audioAsset = project.assets.find((asset) => asset.kind === 'audio')
   const coverAsset = project.assets.find((asset) => asset.kind === 'cover')
@@ -119,19 +242,42 @@ function buildRenderConfig(project: Project, body: unknown): LyricVideoConfig {
     )
   }
 
+  const effectiveArtist = parsedBody.artist ?? project.artist
+  const effectiveArtistEnglish =
+    parsedBody.artistEnglish ?? project.artistEnglish
+  const filteredLyrics = filterLyricsByArtistName(project.lyrics, effectiveArtist)
+  const shouldEmbedCover = randomPosterShowsCover(parsedBody.templateId) !== false
+
   return lyricVideoConfigSchema.parse({
     projectId: project.id,
     ratio: parsedBody.ratio,
     templateId: parsedBody.templateId,
     title: parsedBody.title ?? project.title,
-    artist: parsedBody.artist ?? project.artist,
+    artist: formatArtistDisplay(effectiveArtist, effectiveArtistEnglish),
+    artistEnglish: effectiveArtistEnglish,
     audioAssetId: audioAsset.id,
     coverAssetId: coverAsset.id,
-    lyrics: project.lyrics,
+    ...(shouldEmbedCover
+      ? {
+          coverUrl: await assetToDataUrl(storageRoot, coverAsset)
+        }
+      : {}),
+    lyrics: filteredLyrics,
     analysis: project.analysis,
     theme: parsedBody.theme,
-    effect: parsedBody.effect
+    effect: parsedBody.effect,
+    customTemplate: parsedBody.customTemplate
   })
+}
+
+async function assetToDataUrl(
+  storageRoot: string,
+  asset: Project['assets'][number]
+) {
+  const buffer = await readFile(join(storageRoot, asset.storagePath))
+  const mimeType = asset.mimeType ?? 'image/jpeg'
+
+  return `data:${mimeType};base64,${buffer.toString('base64')}`
 }
 
 async function runRenderJob(input: {
@@ -147,6 +293,11 @@ async function runRenderJob(input: {
     input.job.projectId,
     `${input.job.id}.visual.mp4`
   )
+  let timeout: NodeJS.Timeout | undefined
+  let heartbeat: NodeJS.Timeout | undefined
+  let cancelRender: (() => void) | undefined
+  let latestProgress = 0.2
+
   try {
     const audioAsset = input.project.assets.find(
       (asset) => asset.id === input.job.config.audioAssetId
@@ -159,14 +310,43 @@ async function runRenderJob(input: {
     await writeRenderJob(input.storageRoot, {
       ...input.job,
       status: 'rendering',
-      progress: 0.2,
+      progress: latestProgress,
       updatedAt: new Date().toISOString()
     })
 
-    await input.renderLyricVideo({
-      config: input.job.config,
-      outputLocation: join(input.storageRoot, visualOutputPath)
-    })
+    heartbeat = setInterval(() => {
+      void writeRenderJob(input.storageRoot, {
+        ...input.job,
+        status: 'rendering',
+        progress: latestProgress,
+        updatedAt: new Date().toISOString()
+      })
+    }, renderHeartbeatMs)
+
+    await withRenderTimeout(
+      input.renderLyricVideo({
+        config: input.job.config,
+        outputLocation: join(input.storageRoot, visualOutputPath),
+        onCancel: (cancel) => {
+          cancelRender = cancel
+        },
+        onProgress: async (progress) => {
+          latestProgress = 0.2 + Math.min(Math.max(progress, 0), 1) * 0.55
+          await writeRenderJob(input.storageRoot, {
+            ...input.job,
+            status: 'rendering',
+            progress: latestProgress,
+            updatedAt: new Date().toISOString()
+          })
+        }
+      }),
+      () => {
+        cancelRender?.()
+      },
+      (handle) => {
+        timeout = handle
+      }
+    )
 
     await writeRenderJob(input.storageRoot, {
       ...input.job,
@@ -189,14 +369,50 @@ async function runRenderJob(input: {
       updatedAt: new Date().toISOString()
     })
   } catch (error) {
+    const failureReason =
+      error instanceof Error ? error.message : 'Render failed'
+
     await writeRenderJob(input.storageRoot, {
       ...input.job,
       status: 'failed',
       progress: 1,
-      failureReason: error instanceof Error ? error.message : 'Render failed',
+      failureReason,
       updatedAt: new Date().toISOString()
     })
+  } finally {
+    if (heartbeat) {
+      clearInterval(heartbeat)
+    }
+
+    if (timeout) {
+      clearTimeout(timeout)
+    }
   }
+}
+
+async function withRenderTimeout<T>(
+  promise: Promise<T>,
+  cancel: () => void,
+  setHandle: (handle: NodeJS.Timeout) => void
+) {
+  if (renderTimeoutMs === undefined) {
+    return promise
+  }
+
+  let timeout: NodeJS.Timeout
+  const timeoutPromise = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      const timeoutMinutes = Math.round(renderTimeoutMs / 60000)
+      const error = new Error(
+        `Render exceeded the ${timeoutMinutes} minute timeout limit`
+      )
+      cancel()
+      reject(error)
+    }, renderTimeoutMs)
+    setHandle(timeout)
+  })
+
+  return Promise.race([promise, timeoutPromise])
 }
 
 export async function muxVideoWithAudio(input: {
@@ -222,7 +438,6 @@ export async function muxVideoWithAudio(input: {
     'copy',
     '-c:a',
     'aac',
-    '-shortest',
     input.outputPath
   ])
 }
@@ -232,14 +447,38 @@ async function readRenderJob(
   projectId: string,
   jobId: string
 ): Promise<RenderJob | undefined> {
+  const path = renderJobPath(storageRoot, projectId, jobId)
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const content = await readFile(path, 'utf8')
+      return renderJobSchema.parse(JSON.parse(content))
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        return undefined
+      }
+
+      if (error instanceof SyntaxError && attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        continue
+      }
+
+      throw error
+    }
+  }
+
+  return undefined
+}
+
+async function readRenderJobSafely(
+  storageRoot: string,
+  projectId: string,
+  jobId: string
+): Promise<RenderJob | undefined> {
   try {
-    const content = await readFile(
-      renderJobPath(storageRoot, projectId, jobId),
-      'utf8'
-    )
-    return renderJobSchema.parse(JSON.parse(content))
+    return await readRenderJob(storageRoot, projectId, jobId)
   } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+    if (error instanceof SyntaxError || error instanceof z.ZodError) {
       return undefined
     }
 
@@ -251,14 +490,56 @@ async function writeRenderJob(storageRoot: string, job: RenderJob) {
   await mkdir(join(storageRoot, 'render-jobs', job.projectId), {
     recursive: true
   })
+  const path = renderJobPath(storageRoot, job.projectId, job.id)
+  const temporaryPath = `${path}.${process.pid}.${Date.now()}.tmp`
+
   await writeFile(
-    renderJobPath(storageRoot, job.projectId, job.id),
+    temporaryPath,
     JSON.stringify(renderJobSchema.parse(job), null, 2)
   )
+  await rename(temporaryPath, path)
 }
 
 function renderJobPath(storageRoot: string, projectId: string, jobId: string) {
   return join(storageRoot, 'render-jobs', projectId, `${jobId}.json`)
+}
+
+function resolveRenderTimeoutMs() {
+  const resolved = resolvePositiveNumber(process.env.RENDER_TIMEOUT_MS)
+
+  if (resolved === undefined) {
+    return 4 * 60 * 60 * 1000
+  }
+
+  return resolved === 0 ? undefined : resolved
+}
+
+function resolveStaleRenderThresholdMs(renderTimeout: number | undefined) {
+  const resolved = resolvePositiveNumber(process.env.RENDER_STALE_AFTER_MS)
+
+  if (resolved !== undefined) {
+    return resolved
+  }
+
+  if (renderTimeout === undefined) {
+    return 12 * 60 * 60 * 1000
+  }
+
+  return Math.max(30 * 60 * 1000, renderTimeout + 10 * 60 * 1000)
+}
+
+function resolvePositiveNumber(value: string | undefined, fallback?: number) {
+  if (value === undefined || value === '') {
+    return fallback
+  }
+
+  const parsed = Number(value)
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback
+  }
+
+  return parsed
 }
 
 const renderRequestBodySchema = lyricVideoConfigSchema
@@ -267,8 +548,10 @@ const renderRequestBodySchema = lyricVideoConfigSchema
     templateId: true,
     title: true,
     artist: true,
+    artistEnglish: true,
     theme: true,
-    effect: true
+    effect: true,
+    customTemplate: true
   })
   .extend({
     ratio: videoRatioSchema.default('9:16'),

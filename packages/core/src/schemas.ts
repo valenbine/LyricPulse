@@ -66,7 +66,67 @@ export const lyricVideoThemeSchema = z.object({
 export const lyricVideoEffectSchema = z.object({
   lyricGlow: z.number().min(0).max(1),
   pulseIntensity: z.number().min(0).max(1),
-  beatImpact: z.number().min(0).max(1)
+  beatImpact: z.number().min(0).max(1),
+  stageLighting: z.number().min(0).max(1).default(0.75)
+})
+
+export const editableObjectIdSchema = z.enum([
+  'title',
+  'artist',
+  'lyrics',
+  'activeLyric',
+  'cover',
+  'background',
+  'spectrum'
+])
+
+export const templateLayoutBoxSchema = z.object({
+  x: z.number().finite(),
+  y: z.number().finite(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  scale: z.number().positive().optional(),
+  rotation: z.number().finite().optional(),
+  opacity: z.number().min(0).max(1).optional(),
+  visible: z.boolean().optional()
+})
+
+export const templateTypographySchema = z.object({
+  fontFamily: z.string().min(1).optional(),
+  fontSize: z.number().positive().optional(),
+  fontWeight: z.number().positive().optional(),
+  lineHeight: z.number().positive().optional(),
+  letterSpacing: z.number().finite().optional(),
+  color: z.string().min(1).optional()
+})
+
+export const templateObjectSettingsSchema = z.object({
+  id: editableObjectIdSchema,
+  layout: templateLayoutBoxSchema.optional(),
+  typography: templateTypographySchema.optional(),
+  style: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional()
+})
+
+export const templateRatioSettingsSchema = z.object({
+  objects: z.array(templateObjectSettingsSchema)
+})
+
+export const templateDefinitionSchema = z.object({
+  id: idSchema,
+  name: z.string().min(1),
+  description: z.string().min(1).optional(),
+  schemaVersion: z.literal('1.0'),
+  baseTemplateId: templateIdSchema,
+  sourceType: z.enum(['custom', 'built-in-override']).optional(),
+  ratioSettings: z.partialRecord(videoRatioSchema, templateRatioSettingsSchema),
+  theme: lyricVideoThemeSchema.partial().optional(),
+  effect: lyricVideoEffectSchema.partial().optional(),
+  createdAt: isoDateSchema,
+  updatedAt: isoDateSchema,
+  publishedAt: isoDateSchema.optional(),
+  unpublishedAt: isoDateSchema.optional(),
+  deletedAt: isoDateSchema.optional(),
+  archivedAt: isoDateSchema.optional()
 })
 
 export const lyricVideoConfigSchema = z.object({
@@ -75,12 +135,16 @@ export const lyricVideoConfigSchema = z.object({
   templateId: templateIdSchema,
   title: z.string().min(1).optional(),
   artist: z.string().min(1).optional(),
+  artistEnglish: z.string().min(1).optional(),
   audioAssetId: idSchema,
+  audioUrl: z.string().min(1).optional(),
   coverAssetId: idSchema,
+  coverUrl: z.string().min(1).optional(),
   lyrics: z.array(lyricLineSchema),
   analysis: audioAnalysisSchema,
   theme: lyricVideoThemeSchema,
-  effect: lyricVideoEffectSchema
+  effect: lyricVideoEffectSchema,
+  customTemplate: templateDefinitionSchema.optional()
 })
 
 export const uploadMetadataSchema = z.object({
@@ -94,6 +158,7 @@ export const projectSchema = z.object({
   id: idSchema,
   title: z.string().min(1).optional(),
   artist: z.string().min(1).optional(),
+  artistEnglish: z.string().min(1).optional(),
   assets: z.array(assetMetadataSchema),
   lyrics: z.array(lyricLineSchema),
   analysis: audioAnalysisSchema.optional(),

@@ -5,15 +5,18 @@ import type { LyricVideoConfig, TemplateId, VideoRatio } from '@lyricpulse/core'
 import { getCompositionId, getVideoDimensions } from './dimensions'
 import { getDurationInFrames } from './helpers'
 import { createTemplateConfig } from './sample-config'
-import { NeonLyric, PulseCover, WaveformStage } from './templates'
+import * as Templates from './templates'
 
-const fps = 30
+const fps = 24
 
-const templateComponents = {
-  PulseCover,
-  NeonLyric,
-  WaveformStage
-} satisfies Record<TemplateId, ComponentType<{ config: LyricVideoConfig }>>
+const exportedTemplates = Templates as unknown as Record<
+  TemplateId,
+  ComponentType<{ config: LyricVideoConfig }>
+>
+
+const templateComponents = Object.fromEntries(
+  templateIds.map((templateId) => [templateId, exportedTemplates[templateId]])
+) as Record<TemplateId, ComponentType<{ config: LyricVideoConfig }>>
 
 export function RemotionRoot() {
   return (

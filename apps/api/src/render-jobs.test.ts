@@ -32,7 +32,6 @@ describe('muxVideoWithAudio', () => {
           'copy',
           '-c:a',
           'aac',
-          '-shortest',
           '/tmp/final/render.mp4'
         ]
       }

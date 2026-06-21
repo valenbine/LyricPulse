@@ -1,6 +1,5 @@
 export * from './dimensions'
 export * from './helpers'
-export * from './render'
 export * from './root'
 export * from './sample-config'
 export * from './templates'

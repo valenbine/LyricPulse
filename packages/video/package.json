@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./render": "./src/render.ts",
-    "./root": "./src/root.tsx"
+    "./root": "./src/root.tsx",
+    "./random-poster-settings": "./src/templates/random-lyric-settings.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
