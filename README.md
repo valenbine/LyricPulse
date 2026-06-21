@@ -9,8 +9,13 @@ LyricPulse is a local-first web app for generating dynamic lyric videos from upl
 - Upload JPG, PNG, or WEBP cover artwork.
 - Analyze audio duration and loudness with FFmpeg, with replaceable adapters for BPM, beats, and frequency bands.
 - Edit lyric video settings in a Chinese dark music workstation UI.
+- Manage local project history, reopen saved projects, and delete stale projects with asset cleanup.
+- Store artist metadata as Chinese and English names, then render a combined display label while filtering singer-name lyric lines by the Chinese name.
+- Adjust lyric line timing in Studio with per-line `-0.5s` / `+0.5s`, delete rows, undo edits, and save the updated timeline.
+- Preview and render beat-synced stage lighting, including a shared `stageLighting` intensity control used by both Studio preview and final export.
 - Export MP4 lyric videos in `9:16` and `16:9`.
-- Render with three built-in Remotion templates: `PulseCover`, `NeonLyric`, and `WaveformStage`.
+- Render with a growing library of Remotion templates, including `PulseCover`, `NeonLyric`, `WaveformStage`, and poster-style variants such as `OrbitWords`.
+- Keep long renders running in the background and inspect progress, success, or failure from render history.
 
 ## Stack
 
@@ -77,13 +82,14 @@ The Vite dev server proxies `/api` requests to `http://localhost:3001`, so the b
 ## Usage Flow
 
 1. Open the Web Studio.
-2. Create a project by entering a title and artist.
+2. Create a project by entering a title, artist, and optional English artist name.
 3. Upload one audio file, one LRC file, and one cover image.
 4. Run audio analysis.
-5. Choose `PulseCover`, `NeonLyric`, or `WaveformStage`.
-6. Choose `9:16` or `16:9`.
-7. Adjust theme and effect controls.
-8. Start rendering and download the generated MP4.
+5. Choose a template and `9:16` or `16:9` output ratio.
+6. Adjust theme and effect controls, including stage lighting intensity.
+7. Review the lyric timeline and apply per-line timing edits when needed.
+8. Start rendering, leave the job running in the background, and monitor it from render history.
+9. Open a completed job to preview or download the generated MP4.
 
 ## Validation
 
