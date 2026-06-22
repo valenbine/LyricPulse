@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   lyricVideoConfigSchema,
+  renderJobSchema,
   renderJobRequestSchema,
   uploadMetadataSchema
 } from './schemas'
@@ -98,5 +99,25 @@ describe('schemas', () => {
     })
 
     expect(parsed.effect.stageLighting).toBe(0.75)
+  })
+
+  it('accepts extended render job lifecycle fields', () => {
+    const parsed = renderJobSchema.parse({
+      id: 'job-1',
+      projectId: 'project-1',
+      config,
+      status: 'rendering',
+      currentStep: 'muxing-audio',
+      progress: 0.75,
+      createdAt: '2026-06-22T00:00:00.000Z',
+      queuedAt: '2026-06-22T00:00:01.000Z',
+      startedAt: '2026-06-22T00:00:02.000Z',
+      heartbeatAt: '2026-06-22T00:00:03.000Z',
+      lastProgressAt: '2026-06-22T00:00:04.000Z',
+      updatedAt: '2026-06-22T00:00:05.000Z'
+    })
+
+    expect(parsed.currentStep).toBe('muxing-audio')
+    expect(parsed.heartbeatAt).toBe('2026-06-22T00:00:03.000Z')
   })
 })

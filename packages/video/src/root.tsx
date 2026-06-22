@@ -1,27 +1,25 @@
 import type { ComponentType } from 'react'
 import { Composition } from 'remotion'
-import { templateIds, videoRatios } from '@lyricpulse/core'
+import { videoRatios } from '@lyricpulse/core'
 import type { LyricVideoConfig, TemplateId, VideoRatio } from '@lyricpulse/core'
 import { getCompositionId, getVideoDimensions } from './dimensions'
 import { getDurationInFrames } from './helpers'
 import { createTemplateConfig } from './sample-config'
-import * as Templates from './templates'
+import {
+  builtInTemplateRegistry,
+  getTemplateRegistration
+} from './template-registry'
 
 const fps = 24
 
-const exportedTemplates = Templates as unknown as Record<
-  TemplateId,
-  ComponentType<{ config: LyricVideoConfig }>
->
-
 const templateComponents = Object.fromEntries(
-  templateIds.map((templateId) => [templateId, exportedTemplates[templateId]])
+  builtInTemplateRegistry.map((registration) => [registration.id, registration.component])
 ) as Record<TemplateId, ComponentType<{ config: LyricVideoConfig }>>
 
 export function RemotionRoot() {
   return (
     <>
-      {templateIds.flatMap((templateId) =>
+      {builtInTemplateRegistry.flatMap(({ id: templateId }) =>
         videoRatios.map((ratio) => {
           const config = createTemplateConfig(templateId, ratio)
           const dimensions = getVideoDimensions(ratio)
@@ -46,11 +44,11 @@ export function RemotionRoot() {
 }
 
 export function getTemplateComponent(templateId: TemplateId) {
-  return templateComponents[templateId]
+  return getTemplateRegistration(templateId).component
 }
 
 export function getCompositionDefinitions() {
-  return templateIds.flatMap((templateId) =>
+  return builtInTemplateRegistry.flatMap(({ id: templateId }) =>
     videoRatios.map((ratio: VideoRatio) => ({
       id: getCompositionId(templateId, ratio),
       templateId,

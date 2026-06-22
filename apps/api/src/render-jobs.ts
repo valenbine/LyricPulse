@@ -24,7 +24,7 @@ import {
   type Project,
   type RenderJob
 } from '@lyricpulse/core'
-import { randomPosterShowsCover } from '@lyricpulse/video/random-poster-settings'
+import { getTemplateMetadata } from '@lyricpulse/video/template-metadata'
 import { z } from 'zod'
 import { ApiError } from './errors'
 import type { ProjectStore } from './projects'
@@ -38,6 +38,7 @@ const renderHeartbeatMs = resolvePositiveNumber(
   process.env.RENDER_HEARTBEAT_MS,
   60 * 1000
 )
+const renderAssetBaseUrl = resolveRenderAssetBaseUrl()
 const processStartedAt = Date.now()
 
 export async function createRenderJob(input: {
@@ -62,7 +63,6 @@ export async function createRenderJob(input: {
   }
 
   const config = await buildRenderConfig(
-    input.storageRoot,
     input.project,
     input.body
   )
@@ -72,8 +72,11 @@ export async function createRenderJob(input: {
     projectId: input.project.id,
     config,
     status: 'created',
+    currentStep: 'queued',
     progress: 0,
     createdAt: now,
+    queuedAt: now,
+    heartbeatAt: now,
     updatedAt: now
   }
 
@@ -176,6 +179,9 @@ function markStaleRenderJob(job: RenderJob): RenderJob {
     ...job,
     status: 'failed',
     progress: 1,
+    currentStep: 'failed',
+    finishedAt: job.finishedAt ?? new Date().toISOString(),
+    failureCode: job.failureCode ?? 'RENDER_STALE',
     failureReason: 'Render process was interrupted before completion'
   }
 }
@@ -214,7 +220,6 @@ export async function createRenderJobDownload(input: {
 }
 
 async function buildRenderConfig(
-  storageRoot: string,
   project: Project,
   body: unknown
 ): Promise<LyricVideoConfig> {
@@ -246,7 +251,8 @@ async function buildRenderConfig(
   const effectiveArtistEnglish =
     parsedBody.artistEnglish ?? project.artistEnglish
   const filteredLyrics = filterLyricsByArtistName(project.lyrics, effectiveArtist)
-  const shouldEmbedCover = randomPosterShowsCover(parsedBody.templateId) !== false
+  const shouldEmbedCover =
+    getTemplateMetadata(parsedBody.templateId).coverMode !== 'hidden'
 
   return lyricVideoConfigSchema.parse({
     projectId: project.id,
@@ -259,7 +265,7 @@ async function buildRenderConfig(
     coverAssetId: coverAsset.id,
     ...(shouldEmbedCover
       ? {
-          coverUrl: await assetToDataUrl(storageRoot, coverAsset)
+          coverUrl: createRenderAssetUrl(project.id, coverAsset.id)
         }
       : {}),
     lyrics: filteredLyrics,
@@ -270,14 +276,14 @@ async function buildRenderConfig(
   })
 }
 
-async function assetToDataUrl(
-  storageRoot: string,
-  asset: Project['assets'][number]
-) {
-  const buffer = await readFile(join(storageRoot, asset.storagePath))
-  const mimeType = asset.mimeType ?? 'image/jpeg'
+function createRenderAssetUrl(projectId: string, assetId: string) {
+  return `${renderAssetBaseUrl}/api/projects/${projectId}/assets/${assetId}`
+}
 
-  return `data:${mimeType};base64,${buffer.toString('base64')}`
+function resolveRenderAssetBaseUrl() {
+  const port = resolvePositiveNumber(process.env.PORT, 3001)
+
+  return `http://127.0.0.1:${port}`
 }
 
 async function runRenderJob(input: {
@@ -297,6 +303,8 @@ async function runRenderJob(input: {
   let heartbeat: NodeJS.Timeout | undefined
   let cancelRender: (() => void) | undefined
   let latestProgress = 0.2
+  let latestHeartbeatAt =
+    input.job.heartbeatAt ?? input.job.queuedAt ?? input.job.createdAt
 
   try {
     const audioAsset = input.project.assets.find(
@@ -307,20 +315,36 @@ async function runRenderJob(input: {
       throw new ApiError(400, 'AUDIO_ASSET_REQUIRED', 'Audio asset is required')
     }
 
-    await writeRenderJob(input.storageRoot, {
-      ...input.job,
-      status: 'rendering',
-      progress: latestProgress,
-      updatedAt: new Date().toISOString()
+    await patchRenderJob(input.storageRoot, input.job.projectId, input.job.id, () => {
+      const now = new Date().toISOString()
+      latestHeartbeatAt = now
+
+      return {
+        status: 'rendering',
+        currentStep: 'rendering-video',
+        progress: latestProgress,
+        startedAt: now,
+        heartbeatAt: now,
+        lastProgressAt: now,
+        updatedAt: now
+      }
     })
 
     heartbeat = setInterval(() => {
-      void writeRenderJob(input.storageRoot, {
-        ...input.job,
-        status: 'rendering',
-        progress: latestProgress,
-        updatedAt: new Date().toISOString()
-      })
+      void patchRenderJob(
+        input.storageRoot,
+        input.job.projectId,
+        input.job.id,
+        () => {
+          const now = new Date().toISOString()
+          latestHeartbeatAt = now
+
+          return {
+            heartbeatAt: now,
+            updatedAt: now
+          }
+        }
+      )
     }, renderHeartbeatMs)
 
     await withRenderTimeout(
@@ -332,11 +356,18 @@ async function runRenderJob(input: {
         },
         onProgress: async (progress) => {
           latestProgress = 0.2 + Math.min(Math.max(progress, 0), 1) * 0.55
-          await writeRenderJob(input.storageRoot, {
-            ...input.job,
-            status: 'rendering',
-            progress: latestProgress,
-            updatedAt: new Date().toISOString()
+          await patchRenderJob(input.storageRoot, input.job.projectId, input.job.id, () => {
+            const now = new Date().toISOString()
+            latestHeartbeatAt = now
+
+            return {
+              status: 'rendering',
+              currentStep: 'rendering-video',
+              progress: latestProgress,
+              heartbeatAt: now,
+              lastProgressAt: now,
+              updatedAt: now
+            }
           })
         }
       }),
@@ -348,11 +379,18 @@ async function runRenderJob(input: {
       }
     )
 
-    await writeRenderJob(input.storageRoot, {
-      ...input.job,
-      status: 'rendering',
-      progress: 0.75,
-      updatedAt: new Date().toISOString()
+    await patchRenderJob(input.storageRoot, input.job.projectId, input.job.id, () => {
+      const now = new Date().toISOString()
+      latestHeartbeatAt = now
+
+      return {
+        status: 'rendering',
+        currentStep: 'muxing-audio',
+        progress: 0.75,
+        heartbeatAt: now,
+        lastProgressAt: now,
+        updatedAt: now
+      }
     })
 
     await input.muxVideoWithAudio({
@@ -361,23 +399,37 @@ async function runRenderJob(input: {
       outputPath: join(input.storageRoot, outputPath)
     })
 
-    await writeRenderJob(input.storageRoot, {
-      ...input.job,
-      status: 'succeeded',
-      progress: 1,
-      outputPath,
-      updatedAt: new Date().toISOString()
+    await patchRenderJob(input.storageRoot, input.job.projectId, input.job.id, () => {
+      const now = new Date().toISOString()
+
+      return {
+        status: 'succeeded',
+        currentStep: 'completed',
+        progress: 1,
+        outputPath,
+        heartbeatAt: latestHeartbeatAt,
+        lastProgressAt: now,
+        finishedAt: now,
+        updatedAt: now
+      }
     })
   } catch (error) {
     const failureReason =
       error instanceof Error ? error.message : 'Render failed'
 
-    await writeRenderJob(input.storageRoot, {
-      ...input.job,
-      status: 'failed',
-      progress: 1,
-      failureReason,
-      updatedAt: new Date().toISOString()
+    await patchRenderJob(input.storageRoot, input.job.projectId, input.job.id, () => {
+      const now = new Date().toISOString()
+
+      return {
+        status: 'failed',
+        currentStep: 'failed',
+        progress: 1,
+        failureReason,
+        failureCode: resolveFailureCode(error),
+        heartbeatAt: latestHeartbeatAt,
+        finishedAt: now,
+        updatedAt: now
+      }
     })
   } finally {
     if (heartbeat) {
@@ -500,8 +552,45 @@ async function writeRenderJob(storageRoot: string, job: RenderJob) {
   await rename(temporaryPath, path)
 }
 
+async function patchRenderJob(
+  storageRoot: string,
+  projectId: string,
+  jobId: string,
+  mutate: (current: RenderJob) => Partial<RenderJob>
+) {
+  const current = await readRenderJob(storageRoot, projectId, jobId)
+
+  if (!current) {
+    return undefined
+  }
+
+  const next = {
+    ...current,
+    ...mutate(current)
+  }
+
+  await writeRenderJob(storageRoot, next)
+  return next
+}
+
 function renderJobPath(storageRoot: string, projectId: string, jobId: string) {
   return join(storageRoot, 'render-jobs', projectId, `${jobId}.json`)
+}
+
+function resolveFailureCode(error: unknown) {
+  if (error instanceof ApiError) {
+    return error.code
+  }
+
+  if (error instanceof Error) {
+    if (error.message.includes('timeout limit')) {
+      return 'RENDER_TIMEOUT'
+    }
+
+    return 'RENDER_FAILED'
+  }
+
+  return 'RENDER_FAILED'
 }
 
 function resolveRenderTimeoutMs() {

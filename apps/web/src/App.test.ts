@@ -4,7 +4,7 @@ import {
   getTemplateObjectSettings,
   normalizeTemplateEditorObjects,
   updateTemplateObjectSettings,
-} from './App'
+} from './features/admin/template-editor-helpers'
 
 function createTemplate(overrides: Partial<TemplateDefinition> = {}): TemplateDefinition {
   return {

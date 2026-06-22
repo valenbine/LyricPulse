@@ -4,6 +4,7 @@ import {
   coverFormats,
   lyricFormats,
   renderJobStatuses,
+  renderJobSteps,
   templateIds,
   videoRatios
 } from './types'
@@ -18,6 +19,7 @@ export const coverFormatSchema = z.enum(coverFormats)
 export const videoRatioSchema = z.enum(videoRatios)
 export const templateIdSchema = z.enum(templateIds)
 export const renderJobStatusSchema = z.enum(renderJobStatuses)
+export const renderJobStepSchema = z.enum(renderJobSteps)
 
 export const assetMetadataSchema = z.object({
   id: idSchema,
@@ -174,10 +176,17 @@ export const renderJobSchema = z.object({
   projectId: idSchema,
   config: lyricVideoConfigSchema,
   status: renderJobStatusSchema,
+  currentStep: renderJobStepSchema.optional(),
   progress: z.number().min(0).max(1),
   outputPath: z.string().min(1).optional(),
   failureReason: z.string().min(1).optional(),
+  failureCode: z.string().min(1).optional(),
   createdAt: isoDateSchema,
+  queuedAt: isoDateSchema.optional(),
+  startedAt: isoDateSchema.optional(),
+  heartbeatAt: isoDateSchema.optional(),
+  lastProgressAt: isoDateSchema.optional(),
+  finishedAt: isoDateSchema.optional(),
   updatedAt: isoDateSchema
 })
 

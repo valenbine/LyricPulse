@@ -221,12 +221,21 @@ export const renderJobStatuses = [
   'failed'
 ] as const
 
+export const renderJobSteps = [
+  'queued',
+  'rendering-video',
+  'muxing-audio',
+  'completed',
+  'failed'
+] as const
+
 export type AudioFormat = (typeof audioFormats)[number]
 export type LyricFormat = (typeof lyricFormats)[number]
 export type CoverFormat = (typeof coverFormats)[number]
 export type VideoRatio = (typeof videoRatios)[number]
 export type TemplateId = (typeof templateIds)[number]
 export type RenderJobStatus = (typeof renderJobStatuses)[number]
+export type RenderJobStep = (typeof renderJobSteps)[number]
 
 export type AssetKind = 'audio' | 'lyrics' | 'cover'
 export type StorageProvider = 'local'
@@ -388,9 +397,16 @@ export type RenderJob = {
   projectId: string
   config: LyricVideoConfig
   status: RenderJobStatus
+  currentStep?: RenderJobStep
   progress: number
   outputPath?: string
   failureReason?: string
+  failureCode?: string
   createdAt: string
+  queuedAt?: string
+  startedAt?: string
+  heartbeatAt?: string
+  lastProgressAt?: string
+  finishedAt?: string
   updatedAt: string
 }

@@ -604,18 +604,28 @@ describe('LyricPulse API', () => {
     expect(createdJob).toMatchObject({
       projectId: project.id,
       status: 'created',
+      currentStep: 'queued',
       progress: 0,
+      queuedAt: expect.any(String),
+      heartbeatAt: expect.any(String),
       config: {
         ratio: '9:16',
         templateId: 'NeonLyric'
       }
     })
+    expect(createdJob.config.coverUrl).toBe(
+      `http://127.0.0.1:3001/api/projects/${project.id}/assets/${createdJob.config.coverAssetId}`
+    )
 
     const finishedJob = await waitForRenderJob(project.id, createdJob.id)
 
     expect(finishedJob).toMatchObject({
       status: 'succeeded',
-      progress: 1
+      currentStep: 'completed',
+      progress: 1,
+      startedAt: expect.any(String),
+      lastProgressAt: expect.any(String),
+      finishedAt: expect.any(String)
     })
 
     const downloadResponse = await app.inject({
@@ -851,7 +861,10 @@ describe('LyricPulse API', () => {
     expect(response.json().jobs[0]).toMatchObject({
       id: staleJob.id,
       status: 'failed',
+      currentStep: 'failed',
       progress: 1,
+      failureCode: 'RENDER_STALE',
+      finishedAt: expect.any(String),
       failureReason: 'Render process was interrupted before completion'
     })
   })

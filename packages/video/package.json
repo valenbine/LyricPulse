@@ -7,6 +7,8 @@
     ".": "./src/index.ts",
     "./render": "./src/render.ts",
     "./root": "./src/root.tsx",
+    "./template-metadata": "./src/template-metadata.ts",
+    "./template-registry": "./src/template-registry.ts",
     "./random-poster-settings": "./src/templates/random-lyric-settings.ts"
   },
   "scripts": {

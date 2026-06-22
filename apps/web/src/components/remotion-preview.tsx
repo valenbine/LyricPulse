@@ -37,11 +37,17 @@ export function RemotionPreview({ config }: { config: LyricVideoConfig }) {
   const previousAudioUrlRef = useRef<string | undefined>(undefined)
   const previousProjectIdRef = useRef<string | undefined>(undefined)
   const previousVisualSignatureRef = useRef<string | undefined>(undefined)
+  const isPlayingRef = useRef(false)
 
   const [currentFrame, setCurrentFrame] = useState(0)
   const [dragFrame, setDragFrame] = useState<number | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isAudioReady, setIsAudioReady] = useState(!config.audioUrl)
+
+  const setPlaybackState = (playing: boolean) => {
+    isPlayingRef.current = playing
+    setIsPlaying(playing)
+  }
 
   const clampFrame = (frame: number) =>
     Math.max(0, Math.min(durationInFrames - 1, Math.round(frame)))
@@ -88,7 +94,7 @@ export function RemotionPreview({ config }: { config: LyricVideoConfig }) {
   }
 
   const getPlaybackSeconds = () => {
-    if (isPlaying && audioContextRef.current) {
+    if (isPlayingRef.current && audioContextRef.current) {
       return Math.max(0, audioContextRef.current.currentTime - startTimeRef.current)
     }
 
@@ -147,7 +153,7 @@ export function RemotionPreview({ config }: { config: LyricVideoConfig }) {
 
   const pausePlayback = () => {
     pausedTimeRef.current = Math.min(getPlaybackSeconds(), getAudioDuration())
-    setIsPlaying(false)
+    setPlaybackState(false)
     stopRafLoop()
     stopSourceNode()
   }
@@ -156,7 +162,7 @@ export function RemotionPreview({ config }: { config: LyricVideoConfig }) {
     const buffer = audioBufferRef.current
 
     if (!buffer) {
-      setIsPlaying(false)
+      setPlaybackState(false)
       return
     }
 
@@ -175,7 +181,7 @@ export function RemotionPreview({ config }: { config: LyricVideoConfig }) {
 
       source.disconnect()
       sourceNodeRef.current = null
-      setIsPlaying(false)
+      setPlaybackState(false)
       stopRafLoop()
       pausedTimeRef.current = 0
       desiredFrameRef.current = 0
@@ -191,7 +197,7 @@ export function RemotionPreview({ config }: { config: LyricVideoConfig }) {
     desiredFrameRef.current = committedFrameRef.current
     updateDisplayedFrame(committedFrameRef.current)
     source.start(0, targetSeconds)
-    setIsPlaying(true)
+    setPlaybackState(true)
     startRafLoop()
   }
 
